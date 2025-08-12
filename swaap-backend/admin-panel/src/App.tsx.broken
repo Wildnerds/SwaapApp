@@ -1,0 +1,1977 @@
+import React, { useState, useEffect } from 'react';
+
+// Types
+interface IdentityVerification {
+  uploadId: string;
+  userId: { _id: string; fullName: string; email: string; trustScore?: number };
+  documentType: string;
+  status: string;
+  submittedAt: string;
+}
+
+interface AddressVerification {
+  userId: string;
+  fullName: string;
+  email: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    country: string;
+    landmark?: string;
+    verificationStatus: string;
+    coordinates?: { latitude: number; longitude: number };
+    geocodingResults?: { confidence: number; factors: string[]; warnings: string[] };
+  };
+  trustScore?: number;
+  submittedAt: string;
+}
+
+interface Advertisement {
+  _id: string;
+  title: string;
+  subtitle?: string;
+  image: string;
+  type: 'admin' | 'user_product' | 'external';
+  externalUrl?: string;
+  productId?: {
+    _id: string;
+    title: string;
+    price: number;
+    images: string[];
+  };
+  userId?: {
+    _id: string;
+    fullName: string;
+    email: string;
+  };
+  status: 'active' | 'inactive' | 'expired' | 'pending';
+  priority: number;
+  startDate: string;
+  endDate: string;
+  impressions: number;
+  clicks: number;
+  paymentAmount?: number;
+  paymentStatus?: 'pending' | 'completed' | 'failed' | 'refunded';
+  createdBy?: {
+    _id: string;
+    fullName: string;
+    email: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AdvertisementStats {
+  totals: {
+    totalAds: number;
+    activeAds: number;
+    userAds: number;
+    adminAds: number;
+  };
+  performance: {
+    totalImpressions: number;
+    totalClicks: number;
+    averageCTR: string;
+  };
+  revenue: {
+    totalRevenue: number;
+  };
+  byStatus: { [key: string]: number };
+  topPerforming: Advertisement[];
+}
+
+interface AdminMetrics {
+  totalUsers: number;
+  verification?: {
+    core: {
+      email: number;
+      phone: number;
+      address: number;
+      identity: number;
+      fullyVerified: number;
+    };
+    pending: {
+      identity: number;
+      address: number;
+    };
+    social: Array<{ _id: string; count: number }>;
+    averageTrustScore: number;
+  };
+}
+
+const API_BASE = 'http://localhost:5002/api';
+
+// Helper function to get platform icons
+const getPlatformIcon = (platform: string | null | undefined): string => {
+  const icons: { [key: string]: string } = {
+    twitter: '🐦',
+    instagram: '📷',
+    facebook: '📘',
+    linkedin: '💼',
+    tiktok: '🎵',
+    youtube: '📺',
+    github: '💻',
+    default: '🔗'
+  };
+  
+  if (!platform) {
+    return icons.default;
+  }
+  
+  return icons[platform.toLowerCase()] || icons.default;
+};
+
+// Authentication Context
+const AuthContext = React.createContext<{
+  token: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  isAuthenticated: boolean;
+}>({
+  token: null,
+  login: async () => false,
+  logout: () => {},
+  isAuthenticated: false
+});
+
+// Auth Provider Component
+const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [token, setToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Initialize auth state from memory (not localStorage)
+  useEffect(() => {
+    // In a real app, you might check for existing session here
+    // For now, we'll start with no authentication
+  }, []);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.user?.role === 'admin') {
+          setToken(data.token);
+          setIsAuthenticated(true);
+          return true;
+        } else {
+          alert('❌ Access denied: Admin role required');
+          return false;
+        }
+      } else {
+        const error = await response.json().catch(() => ({ message: 'Login failed' }));
+        alert(`❌ Login failed: ${error.message}`);
+        return false;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('❌ Login failed: Network error');
+      return false;
+    }
+  };
+
+  const logout = () => {
+    setToken(null);
+    setIsAuthenticated(false);
+  };
+
+  return (
+    <AuthContext.Provider value={{ token, login, logout, isAuthenticated }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Login Component
+const LoginForm: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = React.useContext(AuthContext);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const success = await login(email, password);
+    setLoading(false);
+    if (!success) {
+      setPassword(''); // Clear password on failed login
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f8f9fa'
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '2rem',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        width: '100%',
+        maxWidth: '400px'
+      }}>
+        <h1 style={{ textAlign: 'center', marginBottom: '2rem', color: '#2c3e50' }}>
+          🛡️ Swaap Admin
+        </h1>
+        
+        <div>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              📧 Email:
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '16px'
+              }}
+              placeholder="admin@swaap.com"
+            />
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              🔒 Password:
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '16px'
+              }}
+              placeholder="Enter your password"
+            />
+          </div>
+          
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: loading ? '#6c757d' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {loading ? '🔄 Logging in...' : '🚀 Login'}
+          </button>
+        </div>
+        
+        <div style={{
+          marginTop: '1rem',
+          padding: '1rem',
+          backgroundColor: '#e7f3ff',
+          borderRadius: '4px',
+          fontSize: '14px',
+          color: '#0066cc'
+        }}>
+          ℹ️ <strong>Admin Access Required:</strong> Only users with admin role can access this panel.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// API Helper with Authentication
+const useAuthenticatedFetch = () => {
+  const { token, logout } = React.useContext(AuthContext);
+
+  const authFetch = async (url: string, options: RequestInit = {}) => {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers
+    };
+
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    if (response.status === 401) {
+      alert('🔒 Session expired. Please login again.');
+      logout();
+      return null;
+    }
+
+    return response;
+  };
+
+  return authFetch;
+};
+
+// Navigation Component
+const Navigation = ({ currentPage, setCurrentPage }: { 
+  currentPage: string; 
+  setCurrentPage: (page: string) => void 
+}) => {
+  const { logout } = React.useContext(AuthContext);
+  
+  const navItems = [
+    { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
+    { id: 'advertisements', name: '📺 Advertisements', icon: '📺' },
+    { id: 'identity', name: '📄 Identity Verification', icon: '📄' },
+    { id: 'address', name: '🏠 Address Verification', icon: '🏠' },
+    { id: 'social', name: '🔗 Social Media', icon: '🔗' },
+    { id: 'users', name: '👥 Users', icon: '👥' }
+  ];
+
+  return (
+    <nav style={{
+      backgroundColor: '#2c3e50',
+      padding: '1rem',
+      marginBottom: '2rem',
+      borderRadius: '8px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }}>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setCurrentPage(item.id)}
+            style={{
+              padding: '0.75rem 1rem',
+              backgroundColor: currentPage === item.id ? '#3498db' : 'transparent',
+              color: 'white',
+              border: currentPage === item.id ? '2px solid #2980b9' : '2px solid transparent',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: currentPage === item.id ? 'bold' : 'normal',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+      
+      <button
+        onClick={logout}
+        style={{
+          padding: '0.5rem 1rem',
+          backgroundColor: '#dc3545',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '14px',
+          fontWeight: 'bold'
+        }}
+      >
+        🚪 Logout
+      </button>
+    </nav>
+  );
+};
+
+// Dashboard Component with Authentication
+const Dashboard = () => {
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchMetrics();
+  }, []);
+
+  const fetchMetrics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authFetch(`${API_BASE}/admin/metrics`);
+      
+      if (response && response.ok) {
+        const data = await response.json();
+        setMetrics(data);
+      } else if (response) {
+        throw new Error(`Failed to fetch metrics: ${response.status}`);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch metrics:', error);
+      setError(error.message || 'Failed to fetch metrics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '2rem' }}>📊 Loading dashboard...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <div style={{ color: '#dc3545', marginBottom: '1rem' }}>❌ {error}</div>
+        <button 
+          onClick={fetchMetrics}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          🔄 Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return <div style={{ textAlign: 'center', padding: '2rem' }}>📊 No data available</div>;
+  }
+
+  return (
+    <div>
+      <h2>📊 Admin Dashboard</h2>
+      
+      {/* Overview Cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '1rem', 
+        marginBottom: '2rem' 
+      }}>
+        <div style={{ 
+          backgroundColor: '#3498db', 
+          color: 'white', 
+          padding: '1.5rem', 
+          borderRadius: '8px', 
+          textAlign: 'center' 
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>{metrics.totalUsers || 0}</h3>
+          <p style={{ margin: 0 }}>👥 Total Users</p>
+        </div>
+        
+        <div style={{ 
+          backgroundColor: '#27ae60', 
+          color: 'white', 
+          padding: '1.5rem', 
+          borderRadius: '8px', 
+          textAlign: 'center' 
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>
+            {metrics.verification?.core?.fullyVerified || 0}
+          </h3>
+          <p style={{ margin: 0 }}>✅ Fully Verified</p>
+        </div>
+        
+        <div style={{ 
+          backgroundColor: '#f39c12', 
+          color: 'white', 
+          padding: '1.5rem', 
+          borderRadius: '8px', 
+          textAlign: 'center' 
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>
+            {(metrics.verification?.pending?.identity || 0) + (metrics.verification?.pending?.address || 0)}
+          </h3>
+          <p style={{ margin: 0 }}>⏳ Pending Reviews</p>
+        </div>
+        
+        <div style={{ 
+          backgroundColor: '#9b59b6', 
+          color: 'white', 
+          padding: '1.5rem', 
+          borderRadius: '8px', 
+          textAlign: 'center' 
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>
+            {Math.round(metrics.verification?.averageTrustScore || 0)}
+          </h3>
+          <p style={{ margin: 0 }}>🎯 Avg Trust Score</p>
+        </div>
+      </div>
+
+      {/* Verification Breakdown */}
+      {metrics.verification && (
+        <div style={{ 
+          backgroundColor: '#f8f9fa', 
+          padding: '1.5rem', 
+          borderRadius: '8px', 
+          marginBottom: '2rem' 
+        }}>
+          <h3>🔐 Verification Breakdown</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div><strong>📧 Email:</strong> {metrics.verification.core.email} verified</div>
+            <div><strong>📱 Phone:</strong> {metrics.verification.core.phone} verified</div>
+            <div><strong>🏠 Address:</strong> {metrics.verification.core.address} verified</div>
+            <div><strong>📄 Identity:</strong> {metrics.verification.core.identity} verified</div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Actions */}
+      <div style={{ 
+        backgroundColor: '#fff3cd', 
+        border: '1px solid #ffeaa7', 
+        padding: '1.5rem', 
+        borderRadius: '8px' 
+      }}>
+        <h3 style={{ color: '#856404' }}>⚠️ Actions Needed</h3>
+        <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+          {(metrics.verification?.pending?.identity || 0) > 0 && (
+            <li>📄 {metrics.verification?.pending?.identity} identity verifications waiting for review</li>
+          )}
+          {(metrics.verification?.pending?.address || 0) > 0 && (
+            <li>🏠 {metrics.verification?.pending?.address} address verifications waiting for review</li>
+          )}
+          {(!metrics.verification?.pending?.identity && !metrics.verification?.pending?.address) && (
+            <li style={{ color: '#27ae60' }}>✅ All caught up! No pending verifications.</li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// Identity Verification Component with Authentication
+const IdentityVerification = () => {
+  const [verifications, setVerifications] = useState<IdentityVerification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchVerifications();
+    const interval = setInterval(fetchVerifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchVerifications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await authFetch(`${API_BASE}/verification/admin/pending`);
+      
+      if (response && response.ok) {
+        const data = await response.json();
+        setVerifications(data.verifications || []);
+      } else if (response) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to fetch verifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReview = async (uploadId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await authFetch(`${API_BASE}/verification/admin/review/${uploadId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          action,
+          comments: `${action} via admin panel`
+        })
+      });
+
+      if (response && response.ok) {
+        alert(`✅ Verification ${action}d successfully!`);
+        fetchVerifications();
+      } else if (response) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to ${action} verification`);
+      }
+    } catch (error: any) {
+      alert(`❌ Failed to ${action} verification: ${error.message}`);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>📄 Identity Verification ({verifications.length})</h2>
+        <button 
+          onClick={fetchVerifications}
+          disabled={loading}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: loading ? '#6c757d' : '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? '🔄 Loading...' : '🔄 Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#f8d7da',
+          color: '#721c24',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '1px solid #f5c6cb'
+        }}>
+          ⚠️ Error: {error}
+        </div>
+      )}
+
+      {verifications.length === 0 && !loading ? (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '3rem', 
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          border: '2px dashed #dee2e6'
+        }}>
+          <h3>📭 No pending identity verifications</h3>
+          <p>All identity documents have been reviewed! 🎉</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {verifications.map((verification) => (
+            <div 
+              key={verification.uploadId}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr 200px' : '1fr', 
+                gap: '1rem', 
+                alignItems: 'center' 
+              }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+                    📄 {verification.documentType.replace('_', ' ')} Document
+                  </h4>
+                  <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                    <strong>User:</strong> {verification.userId.fullName} ({verification.userId.email})
+                  </p>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#666', fontSize: '14px' }}>
+                    <strong>Trust Score:</strong> {verification.userId.trustScore || 0}/150
+                  </p>
+                </div>
+                
+                <div>
+                  <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>
+                    📅 <strong>Submitted:</strong> {new Date(verification.submittedAt).toLocaleString()}
+                  </p>
+                  <p style={{ margin: '0.5rem 0 0 0' }}>
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      backgroundColor: '#ffc107',
+                      color: '#856404',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase'
+                    }}>
+                      ⏳ {verification.status.replace('_', ' ')}
+                    </span>
+                  </p>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <button
+                    onClick={() => handleReview(verification.uploadId, 'approve')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✅ Approve
+                  </button>
+                  <button
+                    onClick={() => handleReview(verification.uploadId, 'reject')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ❌ Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Address Verification Component
+const AddressVerification = () => {
+  const [addresses, setAddresses] = useState<AddressVerification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchAddresses();
+    const interval = setInterval(fetchAddresses, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchAddresses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await authFetch(`${API_BASE}/admin/verifications/address/pending`);
+      
+      if (response && response.ok) {
+        const data = await response.json();
+        setAddresses(data.addresses || []);
+      } else if (response) {
+        throw new Error(`Failed to fetch addresses: ${response.status}`);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch addresses:', error);
+      setError(error.message || 'Failed to fetch address verifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReview = async (userId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await authFetch(`${API_BASE}/admin/verifications/address/${userId}/review`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action,
+          comments: `Address ${action}d via admin panel`
+        })
+      });
+
+      if (response && response.ok) {
+        alert(`✅ Address ${action}d successfully!`);
+        fetchAddresses();
+      } else if (response) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to ${action} address`);
+      }
+    } catch (error: any) {
+      alert(`❌ Failed to ${action} address: ${error.message}`);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>🏠 Address Verification ({addresses.length})</h2>
+        <button 
+          onClick={fetchAddresses}
+          disabled={loading}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: loading ? '#6c757d' : '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? '🔄 Loading...' : '🔄 Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#f8d7da',
+          color: '#721c24',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '1px solid #f5c6cb'
+        }}>
+          ⚠️ Error: {error}
+        </div>
+      )}
+
+      {addresses.length === 0 && !loading ? (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '3rem', 
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          border: '2px dashed #dee2e6'
+        }}>
+          <h3>📭 No pending address verifications</h3>
+          <p>All addresses have been reviewed! 🎉</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {addresses.map((address) => (
+            <div 
+              key={address.userId}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '1.5rem',
+                backgroundColor: 'white',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr 200px' : '1fr', 
+                gap: '1rem', 
+                alignItems: 'start' 
+              }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+                    🏠 {address.fullName}
+                  </h4>
+                  <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                    <strong>Email:</strong> {address.email}
+                  </p>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#666', fontSize: '14px' }}>
+                    <strong>Trust Score:</strong> {address.trustScore || 0}/150
+                  </p>
+                </div>
+                
+                <div>
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '0.75rem', 
+                    borderRadius: '4px', 
+                    fontSize: '13px'
+                  }}>
+                    <div><strong>📍 Address:</strong></div>
+                    <div>{address.address.street}</div>
+                    <div>{address.address.city}, {address.address.state}</div>
+                    <div>{address.address.country}</div>
+                    {address.address.landmark && <div>🏛️ <strong>Landmark:</strong> {address.address.landmark}</div>}
+                  </div>
+                  
+                  {address.address.geocodingResults && (
+                    <div style={{ marginTop: '0.5rem', fontSize: '12px' }}>
+                      <span style={{
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: address.address.geocodingResults.confidence >= 60 ? '#d4edda' : '#fff3cd',
+                        color: address.address.geocodingResults.confidence >= 60 ? '#155724' : '#856404',
+                        borderRadius: '4px'
+                      }}>
+                        🎯 Confidence: {address.address.geocodingResults.confidence}%
+                      </span>
+                    </div>
+                  )}
+                  
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '12px', color: '#666' }}>
+                    📅 <strong>Submitted:</strong> {new Date(address.submittedAt).toLocaleString()}
+                  </p>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <button
+                    onClick={() => handleReview(address.userId, 'approve')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✅ Approve
+                  </button>
+                  <button
+                    onClick={() => handleReview(address.userId, 'reject')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ❌ Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SocialMedia = () => {
+  const [socialStats, setSocialStats] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchSocialStats();
+  }, []);
+
+  const fetchSocialStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authFetch(`${API_BASE}/admin/verifications/social/stats`);
+      if (response && response.ok) {
+        const data = await response.json();
+        setSocialStats(data.stats);
+      } else if (response) {
+        setSocialStats({
+          totalUsersWithSocial: 0,
+          byPlatform: []
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch social stats:', error);
+      setError(error.message);
+      setSocialStats({
+        totalUsersWithSocial: 0,
+        byPlatform: []
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>🔗 Social Media Verifications</h2>
+        <button 
+          onClick={fetchSocialStats}
+          disabled={loading}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: loading ? '#6c757d' : '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? '🔄 Loading...' : '🔄 Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '1px solid #ffeaa7'
+        }}>
+          ⚠️ Social verification endpoints not yet implemented. {error}
+        </div>
+      )}
+
+      <div style={{ 
+        backgroundColor: '#f8f9fa', 
+        padding: '1.5rem', 
+        borderRadius: '8px', 
+        marginBottom: '1rem' 
+      }}>
+        <h3>📊 Social Media Statistics</h3>
+        {socialStats ? (
+          <>
+            <p><strong>Total users with social verifications:</strong> {socialStats.totalUsersWithSocial}</p>
+            
+            {socialStats.byPlatform && socialStats.byPlatform.length > 0 ? (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: '1rem', 
+                marginTop: '1rem' 
+              }}>
+                {socialStats.byPlatform.map((platform: any) => (
+                  <div key={platform._id} style={{
+                    backgroundColor: 'white',
+                    padding: '1rem',
+                    borderRadius: '6px',
+                    border: '1px solid #dee2e6'
+                  }}>
+                    <h4 style={{ margin: '0 0 0.5rem 0', textTransform: 'capitalize' }}>
+                      {getPlatformIcon(platform._id)} {platform._id}
+                    </h4>
+                    <div style={{ fontSize: '14px' }}>
+                      {platform.statuses?.map((status: any) => (
+                        <div key={status.status} style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between',
+                          marginBottom: '0.25rem'
+                        }}>
+                          <span style={{ textTransform: 'capitalize' }}>{status.status}:</span>
+                          <strong>{status.count}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#666', fontStyle: 'italic' }}>No social media verifications yet.</p>
+            )}
+          </>
+        ) : (
+          <p>Loading social media statistics...</p>
+        )}
+      </div>
+      
+      <div style={{
+        backgroundColor: '#e7f3ff',
+        padding: '1rem',
+        borderRadius: '8px',
+        border: '1px solid #b3d9ff'
+      }}>
+        <h4 style={{ margin: '0 0 0.5rem 0', color: '#0066cc' }}>ℹ️ Social Media Verification Info</h4>
+        <ul style={{ margin: 0, paddingLeft: '1.5rem', color: '#0066cc' }}>
+          <li>🎯 Each verified social account adds +10 trust score points</li>
+          <li>📱 Supported platforms: Twitter, Instagram, Facebook, LinkedIn, TikTok</li>
+          <li>🔍 Users can verify through bio links, posts, or username matching</li>
+          <li>✅ Social verifications are mostly automated (no admin review needed)</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+  const Users = () => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('all');
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchUsers();
+  }, [filter]);
+
+  const fetchUsers = async () => {
+    if (!window.confirm('Are you sure you want to delete this advertisement?')) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/admin/advertisements/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        setAdvertisements(ads => ads.filter(ad => ad._id !== id));
+        fetchStats();
+        alert('✅ Advertisement deleted successfully');
+      } else {
+        throw new Error('Failed to delete advertisement');
+      }
+    } catch (err) {
+      console.error('Error deleting advertisement:', err);
+      alert('❌ Failed to delete advertisement');
+    }
+  };
+
+  // Toggle advertisement status
+  const toggleAdStatus = async (ad: Advertisement) => {
+    const newStatus = ad.status === 'active' ? 'inactive' : 'active';
+    
+    try {
+      const response = await fetch(`${API_BASE}/admin/advertisements/${ad._id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (response.ok) {
+        setAdvertisements(ads => 
+          ads.map(advertisement => 
+            advertisement._id === ad._id 
+              ? { ...advertisement, status: newStatus as any }
+              : advertisement
+          )
+        );
+        fetchStats();
+      } else {
+        throw new Error('Failed to update advertisement status');
+      }
+    } catch (err) {
+      console.error('Error updating advertisement:', err);
+      alert('❌ Failed to update advertisement status');
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ color: '#2c3e50', marginBottom: '1rem' }}>📺 Advertisement Management</h2>
+        
+        {/* Tab Navigation */}
+        <div style={{ borderBottom: '1px solid #ddd', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            {[
+              { id: 'overview', label: '📊 Overview' },
+              { id: 'manage', label: '🛠️ Manage' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id as any)}
+                style={{
+                  padding: '1rem 0',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: selectedTab === tab.id ? '2px solid #3498db' : '2px solid transparent',
+                  color: selectedTab === tab.id ? '#3498db' : '#666',
+                  cursor: 'pointer',
+                  fontWeight: selectedTab === tab.id ? 'bold' : 'normal'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Tab Content */}
+        {selectedTab === 'overview' && (
+          <div>
+            <h3 style={{ marginBottom: '1.5rem', color: '#2c3e50' }}>📊 Advertisement Statistics</h3>
+            
+            {stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ padding: '1.5rem', backgroundColor: '#3498db', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>📺 Total Advertisements</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.totals.totalAds}</p>
+                  <small>Active: {stats.totals.activeAds}</small>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#27ae60', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>👁️ Total Impressions</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.performance.totalImpressions.toLocaleString()}</p>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#e74c3c', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>🖱️ Total Clicks</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.performance.totalClicks.toLocaleString()}</p>
+                  <small>CTR: {stats.performance.averageCTR}%</small>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#f39c12', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>💰 Revenue</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>₦{stats.revenue.totalRevenue.toLocaleString()}</p>
+                  <small>From user ads</small>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+              <h4>🎯 Advertisement System Features</h4>
+              <ul style={{ marginTop: '1rem' }}>
+                <li>🔧 <strong>Admin-Controlled Carousel</strong>: Create and manage carousel advertisements</li>
+                <li>💰 <strong>User Product Ads</strong>: Users can pay to promote their products</li>
+                <li>📊 <strong>Performance Analytics</strong>: Track clicks, impressions, and CTR</li>
+                <li>🎚️ <strong>Priority System</strong>: Control ad display order with priority levels</li>
+                <li>⏰ <strong>Scheduling</strong>: Set start and end dates for advertisements</li>
+                <li>💳 <strong>Payment Integration</strong>: Revenue tracking for user advertisements</li>
+              </ul>
+            </div>
+          </div>
+        )}
+        
+        {selectedTab === 'manage' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ color: '#2c3e50' }}>🛠️ Advertisement Management</h3>
+            </div>
+
+            {/* Filters */}
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <select 
+                value={filter.status} 
+                onChange={(e) => setFilter({...filter, status: e.target.value})}
+                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="pending">Pending</option>
+                <option value="expired">Expired</option>
+              </select>
+              
+              <select 
+                value={filter.type} 
+                onChange={(e) => setFilter({...filter, type: e.target.value})}
+                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+              >
+                <option value="all">All Types</option>
+                <option value="admin">Admin Ads</option>
+                <option value="user_product">User Product Ads</option>
+                <option value="external">External Ads</option>
+              </select>
+            </div>
+
+            {/* Advertisements List */}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>Loading advertisements...</div>
+            ) : error ? (
+              <div style={{ padding: '1rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px' }}>
+                {error}
+              </div>
+            ) : advertisements.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                <p>No advertisements found</p>
+                <p style={{ fontSize: '0.9rem', marginTop: '1rem' }}>
+                  Create advertisements using the backend API or wait for users to create product ads.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {advertisements.map(ad => (
+                  <div key={ad._id} style={{ 
+                    border: '1px solid #ddd', 
+                    borderRadius: '8px', 
+                    padding: '1rem',
+                    backgroundColor: ad.status === 'active' ? '#f8f9fa' : '#fff3cd'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <img 
+                        src={ad.image} 
+                        alt={ad.title}
+                        style={{ width: '100px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjYwIiB2aWV3Qm94PSIwIDAgMTAwIDYwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik00NS41IDI1TDU0LjUgMzVINDUuNUwzNi41IDI1SDQ1LjVaIiBmaWxsPSIjQ0NDIi8+Cjwvdmc+';
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0' }}>{ad.title}</h4>
+                        {ad.subtitle && (
+                          <p style={{ margin: '0 0 0.5rem 0', color: '#666' }}>{ad.subtitle}</p>
+                        )}
+                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem', color: '#666', flexWrap: 'wrap' }}>
+                          <span>Status: <strong style={{ color: ad.status === 'active' ? '#28a745' : '#6c757d' }}>{ad.status}</strong></span>
+                          <span>Type: <strong>{ad.type.replace('_', ' ')}</strong></span>
+                          <span>Priority: <strong>{ad.priority}</strong></span>
+                          <span>👁️ {ad.impressions}</span>
+                          <span>🖱️ {ad.clicks}</span>
+                        </div>
+                        {ad.paymentAmount && (
+                          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                            💰 ₦{ad.paymentAmount.toLocaleString()} ({ad.paymentStatus})
+                          </p>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => toggleAdStatus(ad)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: ad.status === 'active' ? '#dc3545' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          {ad.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => deleteAdvertisement(ad._id)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+  const Users = () => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('all');
+  const authFetch = useAuthenticatedFetch();
+
+  useEffect(() => {
+    fetchUsers();
+  }, [filter]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authFetch(`${API_BASE}/admin/all-users${filter !== 'all' ? `?role=${filter}` : ''}`);
+      if (response && response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      } else if (response) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch users:', error);
+      setError(error.message || 'Failed to fetch users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to get verification level display
+  const getVerificationLevelDisplay = (level: number) => {
+    switch (level) {
+      case 4: return { text: 'Fully Verified', color: '#4CAF50' };
+      case 3: return { text: 'Advanced', color: '#2196F3' };
+      case 2: return { text: 'Intermediate', color: '#FF9800' };
+      case 1: return { text: 'Basic', color: '#FFC107' };
+      case 0: return { text: 'Unverified', color: '#f44336' };
+      default: return { text: 'Unverified', color: '#f44336' };
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>👥 Users ({users.length})</h2>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <select 
+            value={filter} 
+            onChange={(e) => setFilter(e.target.value)}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ddd'
+            }}
+          >
+            <option value="all">All Users</option>
+            <option value="user">Regular Users</option>
+            <option value="admin">Admins</option>
+          </select>
+          <button 
+            onClick={fetchUsers}
+            disabled={loading}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: loading ? '#6c757d' : '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {loading ? '🔄 Loading...' : '🔄 Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#f8d7da',
+          color: '#721c24',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '1px solid #f5c6cb'
+        }}>
+          ⚠️ Error: {error}
+        </div>
+      )}
+
+      {users.length === 0 && !loading ? (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '3rem', 
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          border: '2px dashed #dee2e6'
+        }}>
+          <h3>👥 No users found</h3>
+          <p>No users match the current filter.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {users.map((user) => (
+            <div 
+              key={user._id}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '1rem',
+                backgroundColor: 'white',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1rem', alignItems: 'center' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>
+                    {user.fullName}
+                    {user.role === 'admin' && (
+                      <span style={{
+                        marginLeft: '0.5rem',
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: '#dc3545',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        ADMIN
+                      </span>
+                    )}
+                  </h4>
+                  <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                    📧 {user.email}
+                  </p>
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '1rem', fontSize: '13px' }}>
+                    <span>🎯 Trust: {user.trustScore || 0}/100</span>
+                    <span style={{ 
+                      color: getVerificationLevelDisplay(user.verificationLevel || 0).color,
+                      fontWeight: 'bold'
+                    }}>
+                      📊 {getVerificationLevelDisplay(user.verificationLevel || 0).text}
+                    </span>
+                    <span>📅 Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <span style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: user.emailVerified ? '#28a745' : '#dc3545',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }} title="Email Verified">
+                    @
+                  </span>
+                  <span style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: user.phoneVerified ? '#28a745' : '#dc3545',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }} title="Phone Verified">
+                    📱
+                  </span>
+                  <span style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: user.addressVerified ? '#28a745' : '#dc3545',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }} title="Address Verified">
+                    🏠
+                  </span>
+                  <span style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    backgroundColor: user.identityVerified ? '#28a745' : '#dc3545',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }} title="Identity Verified">
+                    📄
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Advertisement Management Component
+const Advertisements = () => {
+  const [advertisements, setAdvertisements] = useState<Advertisement[]>([]);
+  const [stats, setStats] = useState<AdvertisementStats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'manage'>('overview');
+  const [filter, setFilter] = useState({ status: 'all', type: 'all' });
+  const { token } = React.useContext(AuthContext);
+
+  // Fetch advertisement statistics
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/admin/advertisements/stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data.stats);
+      } else {
+        throw new Error('Failed to fetch stats');
+      }
+    } catch (err) {
+      console.error('Error fetching advertisement stats:', err);
+      setError('Failed to fetch advertisement statistics');
+    }
+  };
+
+  // Fetch advertisements
+  const fetchAdvertisements = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const params = new URLSearchParams({
+        limit: '100',
+        ...(filter.status !== 'all' && { status: filter.status }),
+        ...(filter.type !== 'all' && { type: filter.type })
+      });
+      
+      const response = await fetch(`${API_BASE}/admin/advertisements?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAdvertisements(data.advertisements || []);
+      } else {
+        throw new Error('Failed to fetch advertisements');
+      }
+    } catch (err) {
+      console.error('Error fetching advertisements:', err);
+      setError('Failed to fetch advertisements');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchStats();
+    fetchAdvertisements();
+  }, [filter]);
+
+  // Delete advertisement
+  const deleteAdvertisement = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this advertisement?')) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/admin/advertisements/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        setAdvertisements(ads => ads.filter(ad => ad._id !== id));
+        fetchStats();
+        alert('✅ Advertisement deleted successfully');
+      } else {
+        throw new Error('Failed to delete advertisement');
+      }
+    } catch (err) {
+      console.error('Error deleting advertisement:', err);
+      alert('❌ Failed to delete advertisement');
+    }
+  };
+
+  // Toggle advertisement status
+  const toggleAdStatus = async (ad: Advertisement) => {
+    const newStatus = ad.status === 'active' ? 'inactive' : 'active';
+    
+    try {
+      const response = await fetch(`${API_BASE}/admin/advertisements/${ad._id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (response.ok) {
+        setAdvertisements(ads => 
+          ads.map(advertisement => 
+            advertisement._id === ad._id 
+              ? { ...advertisement, status: newStatus as any }
+              : advertisement
+          )
+        );
+        fetchStats();
+      } else {
+        throw new Error('Failed to update advertisement status');
+      }
+    } catch (err) {
+      console.error('Error updating advertisement:', err);
+      alert('❌ Failed to update advertisement status');
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ color: '#2c3e50', marginBottom: '1rem' }}>📺 Advertisement Management</h2>
+        
+        {/* Tab Navigation */}
+        <div style={{ borderBottom: '1px solid #ddd', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            {[
+              { id: 'overview', label: '📊 Overview' },
+              { id: 'manage', label: '🛠️ Manage' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id as any)}
+                style={{
+                  padding: '1rem 0',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: selectedTab === tab.id ? '2px solid #3498db' : '2px solid transparent',
+                  color: selectedTab === tab.id ? '#3498db' : '#666',
+                  cursor: 'pointer',
+                  fontWeight: selectedTab === tab.id ? 'bold' : 'normal'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Tab Content */}
+        {selectedTab === 'overview' && (
+          <div>
+            <h3 style={{ marginBottom: '1.5rem', color: '#2c3e50' }}>📊 Advertisement Statistics</h3>
+            
+            {stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div style={{ padding: '1.5rem', backgroundColor: '#3498db', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>📺 Total Advertisements</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.totals.totalAds}</p>
+                  <small>Active: {stats.totals.activeAds}</small>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#27ae60', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>👁️ Total Impressions</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.performance.totalImpressions.toLocaleString()}</p>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#e74c3c', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>🖱️ Total Clicks</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{stats.performance.totalClicks.toLocaleString()}</p>
+                  <small>CTR: {stats.performance.averageCTR}%</small>
+                </div>
+                
+                <div style={{ padding: '1.5rem', backgroundColor: '#f39c12', color: 'white', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0' }}>💰 Revenue</h4>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>₦{stats.revenue.totalRevenue.toLocaleString()}</p>
+                  <small>From user ads</small>
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+              <h4>🎯 Advertisement System Features</h4>
+              <ul style={{ marginTop: '1rem' }}>
+                <li>🔧 <strong>Admin-Controlled Carousel</strong>: Create and manage carousel advertisements</li>
+                <li>💰 <strong>User Product Ads</strong>: Users can pay to promote their products</li>
+                <li>📊 <strong>Performance Analytics</strong>: Track clicks, impressions, and CTR</li>
+                <li>🎚️ <strong>Priority System</strong>: Control ad display order with priority levels</li>
+                <li>⏰ <strong>Scheduling</strong>: Set start and end dates for advertisements</li>
+                <li>💳 <strong>Payment Integration</strong>: Revenue tracking for user advertisements</li>
+              </ul>
+            </div>
+          </div>
+        )}
+        
+        {selectedTab === 'manage' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ color: '#2c3e50' }}>🛠️ Advertisement Management</h3>
+            </div>
+
+            {/* Filters */}
+            <div style={{ marginBottom: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <select 
+                value={filter.status} 
+                onChange={(e) => setFilter({...filter, status: e.target.value})}
+                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="pending">Pending</option>
+                <option value="expired">Expired</option>
+              </select>
+              
+              <select 
+                value={filter.type} 
+                onChange={(e) => setFilter({...filter, type: e.target.value})}
+                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+              >
+                <option value="all">All Types</option>
+                <option value="admin">Admin Ads</option>
+                <option value="user_product">User Product Ads</option>
+                <option value="external">External Ads</option>
+              </select>
+            </div>
+
+            {/* Advertisements List */}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>Loading advertisements...</div>
+            ) : error ? (
+              <div style={{ padding: '1rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px' }}>
+                {error}
+              </div>
+            ) : advertisements.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                <p>No advertisements found</p>
+                <p style={{ fontSize: '0.9rem', marginTop: '1rem' }}>
+                  Create advertisements using the backend API or wait for users to create product ads.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {advertisements.map(ad => (
+                  <div key={ad._id} style={{ 
+                    border: '1px solid #ddd', 
+                    borderRadius: '8px', 
+                    padding: '1rem',
+                    backgroundColor: ad.status === 'active' ? '#f8f9fa' : '#fff3cd'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <img 
+                        src={ad.image} 
+                        alt={ad.title}
+                        style={{ width: '100px', height: '60px', objectFit: 'cover', borderRadius: '4px' }}
+                        onError={(e) => {
+                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjYwIiB2aWV3Qm94PSIwIDAgMTAwIDYwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik00NS41IDI1TDU0LjUgMzVINDUuNUwzNi41IDI1SDQ1LjVaIiBmaWxsPSIjQ0NDIi8+Cjwvc3ZnPg==';
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ margin: '0 0 0.5rem 0' }}>{ad.title}</h4>
+                        {ad.subtitle && (
+                          <p style={{ margin: '0 0 0.5rem 0', color: '#666' }}>{ad.subtitle}</p>
+                        )}
+                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.9rem', color: '#666', flexWrap: 'wrap' }}>
+                          <span>Status: <strong style={{ color: ad.status === 'active' ? '#28a745' : '#6c757d' }}>{ad.status}</strong></span>
+                          <span>Type: <strong>{ad.type.replace('_', ' ')}</strong></span>
+                          <span>Priority: <strong>{ad.priority}</strong></span>
+                          <span>👁️ {ad.impressions}</span>
+                          <span>🖱️ {ad.clicks}</span>
+                        </div>
+                        {ad.paymentAmount && (
+                          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>
+                            💰 ₦{ad.paymentAmount.toLocaleString()} ({ad.paymentStatus})
+                          </p>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => toggleAdStatus(ad)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: ad.status === 'active' ? '#dc3545' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          {ad.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => deleteAdvertisement(ad._id)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Main App Component with Authentication
+const AdminApp: React.FC = () => {
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const { isAuthenticated } = React.useContext(AuthContext);
+
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'advertisements':
+        return <Advertisements />;
+      case 'identity':
+        return <IdentityVerification />;
+      case 'address':
+        return <AddressVerification />;
+      case 'social':
+        return <SocialMedia />;
+      case 'users':
+        return <Users />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  return (
+    <div style={{ 
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      maxWidth: '1200px',
+      margin: '0 auto',
+      padding: '1rem',
+      backgroundColor: '#f8f9fa',
+      minHeight: '100vh'
+    }}>
+      <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <h1 style={{ 
+          color: '#2c3e50', 
+          marginBottom: '0.5rem',
+          fontSize: '2.5rem'
+        }}>
+          🛡️ Swaap Admin Panel
+        </h1>
+        <p style={{ color: '#666', margin: 0 }}>Enhanced Verification Management System</p>
+      </header>
+
+      <Navigation currentPage={currentPage} setCurrentPage={setCurrentPage} />
+
+      <main style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        padding: '2rem',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+      }}>
+        {renderPage()}
+      </main>
+
+      <footer style={{
+        textAlign: 'center',
+        marginTop: '2rem',
+        padding: '1rem',
+        color: '#666',
+        fontSize: '14px'
+      }}>
+        <p>🔄 Auto-refresh: Every 30 seconds | 🎯 Trust Score: 100 core + 50 social bonus = 150 max</p>
+      </footer>
+    </div>
+  );
+};
+
+// Root App with Auth Provider
+export default function App() {
+  return (
+    <AuthProvider>
+      <AdminApp />
+    </AuthProvider>
+  );
+}

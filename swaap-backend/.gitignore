@@ -1,0 +1,23 @@
+# Environment variables
+.env
+.env.* # covers .env.local, .env.production, etc.
+
+# Node
+node_modules/
+dist/
+*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firebase service accounts
+src/firebase/firebaseServiceAccountKey.json
+swaap-backend/src/serviceAccountKey.json
+
+# VSCode / JetBrains
+.vscode/
+.idea/

@@ -1,0 +1,399 @@
+/* Dark Theme Admin Panel - External Stylesheet */
+
+/* Reset and Base Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #1a1a1a !important;
+  color: #ffffff !important;
+  line-height: 1.6;
+}
+
+/* Override any white backgrounds */
+.bg-white, 
+[style*="background-color: white"],
+[style*="backgroundColor: white"] {
+  background-color: #2d2d2d !important;
+}
+
+/* Override any light borders */
+[style*="border-right: 1px solid #e9ecef"] {
+  border-right: 1px solid #444444 !important;
+}
+
+[style*="border-bottom: 1px solid #e9ecef"] {
+  border-bottom: 1px solid #444444 !important;
+}
+
+/* Dark Theme Button Styling */
+button {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background-color: #3d3d3d !important;
+  border-color: #FFC107 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2) !important;
+}
+
+/* Active navigation button */
+button[style*="background-color: #667eea"],
+button[style*="backgroundColor: #667eea"] {
+  background-color: #FFC107 !important;
+  color: #000000 !important;
+  border-color: #FFC107 !important;
+}
+
+/* Danger/Logout button */
+button[style*="background-color: #dc3545"],
+button[style*="backgroundColor: #dc3545"] {
+  background-color: #dc3545 !important;
+  color: white !important;
+  border-color: #dc3545 !important;
+}
+
+/* Success button */
+.btn-success {
+  background-color: #28a745 !important;
+  color: white !important;
+  border-color: #28a745 !important;
+}
+
+/* Dark Theme Form Styling */
+input, select, textarea {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+  border: 1px solid #444444 !important;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #FFC107 !important;
+  background-color: #3d3d3d !important;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.1) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #888888 !important;
+}
+
+/* Dark Theme Table Styling */
+table {
+  background: #2d2d2d !important;
+  border: 1px solid #444444 !important;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+th, td {
+  border-bottom: 1px solid #444444 !important;
+  color: #ffffff !important;
+}
+
+th {
+  background-color: #1a1a1a !important;
+  color: #FFC107 !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+tr:hover {
+  background-color: #3d3d3d !important;
+}
+
+/* Card Styling */
+div[style*="background: white"],
+div[style*="backgroundColor: white"] {
+  background-color: #2d2d2d !important;
+  border: 1px solid #444444 !important;
+}
+
+/* Header overrides */
+div[style*="backgroundColor: white"] h1,
+div[style*="backgroundColor: white"] h2,
+div[style*="backgroundColor: white"] h3,
+div[style*="background-color: white"] h1,
+div[style*="background-color: white"] h2,
+div[style*="background-color: white"] h3 {
+  color: #ffffff !important;
+}
+
+/* Sidebar header */
+h2[style*="color: #667eea"] {
+  color: #FFC107 !important;
+}
+
+/* App header styling - ensure headers are visible */
+.App-header h1,
+.App-header h2,
+.App-header h3 {
+  color: #ffffff !important;
+}
+
+.App-header p {
+  color: #ffffff !important;
+  opacity: 0.9;
+}
+
+/* Text color overrides */
+span[style*="color: #6c757d"] {
+  color: #888888 !important;
+}
+
+/* General text visibility fixes */
+p[style*="color: #6b7280"],
+span[style*="color: #6b7280"],
+h4[style*="color: #111827"],
+h3[style*="color: #111827"],
+h2[style*="color: #111827"],
+h1[style*="color: #111827"],
+div[style*="color: #6b7280"],
+div[style*="color: #111827"],
+span[style*="color: #374151"],
+p[style*="color: #374151"],
+div[style*="color: #374151"] {
+  color: #ffffff !important;
+}
+
+/* Ensure all text in cards is visible */
+div[style*="background"] p,
+div[style*="background"] span,
+div[style*="background"] h1,
+div[style*="background"] h2,
+div[style*="background"] h3,
+div[style*="background"] h4,
+div[style*="background"] h5,
+div[style*="background"] h6 {
+  color: #ffffff !important;
+}
+
+/* Additional text visibility overrides */
+.verification-item h4,
+.verification-item p,
+.verification-item span,
+[class*="verification"] h4,
+[class*="verification"] p,
+[class*="verification"] span {
+  color: #ffffff !important;
+}
+
+/* Force visibility for any remaining dark text */
+*[style*="color: #111827"] {
+  color: #ffffff !important;
+}
+
+*[style*="color: #374151"] {
+  color: #ffffff !important;
+}
+
+*[style*="color: #6b7280"] {
+  color: #ffffff !important;
+}
+
+/* Status text colors */
+span[style*="color: #16a34a"] {
+  color: #22c55e !important;
+}
+
+span[style*="color: #dc2626"] {
+  color: #ef4444 !important;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-active {
+  background: #28a745 !important;
+  color: white !important;
+}
+
+.status-inactive {
+  background: #dc3545 !important;
+  color: white !important;
+}
+
+.status-pending {
+  background: #FFC107 !important;
+  color: #000000 !important;
+}
+
+.status-verified {
+  background: #17a2b8 !important;
+  color: white !important;
+}
+
+/* Alert Messages */
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 10px 0;
+  border: 1px solid transparent;
+}
+
+.alert-success {
+  background-color: #155724 !important;
+  border-color: #28a745 !important;
+  color: #ffffff !important;
+}
+
+.alert-error {
+  background-color: #721c24 !important;
+  border-color: #dc3545 !important;
+  color: #ffffff !important;
+}
+
+.alert-info {
+  background-color: #004085 !important;
+  border-color: #007bff !important;
+  color: #ffffff !important;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #444444;
+  border-top: 2px solid #FFC107;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FFC107;
+}
+
+/* Utility Classes */
+.text-primary { color: #FFC107 !important; }
+.text-success { color: #28a745 !important; }
+.text-danger { color: #dc3545 !important; }
+.text-info { color: #17a2b8 !important; }
+.text-muted { color: #888888 !important; }
+.text-white { color: #ffffff !important; }
+
+.bg-dark { background-color: #1a1a1a !important; }
+.bg-darker { background-color: #0d0d0d !important; }
+.bg-card { background-color: #2d2d2d !important; }
+.bg-primary { background-color: #FFC107 !important; }
+
+/* Login Form Specific */
+.login-form {
+  background-color: #2d2d2d !important;
+  border: 1px solid #444444 !important;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4) !important;
+}
+
+.login-form h2 {
+  color: #FFC107 !important;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  background-color: #1a1a1a !important;
+  border: 1px solid #444444 !important;
+  border-radius: 6px;
+  color: #ffffff !important;
+}
+
+.login-form button {
+  width: 100%;
+  padding: 12px;
+  background-color: #FFC107 !important;
+  color: #000000 !important;
+  border: none !important;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+  
+  table {
+    font-size: 12px;
+  }
+  
+  th, td {
+    padding: 8px;
+  }
+  
+  button {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+  
+  .login-form {
+    padding: 20px !important;
+  }
+}
+
+/* High contrast mode for accessibility */
+@media (prefers-contrast: high) {
+  button {
+    border-width: 2px !important;
+  }
+  
+  input, select, textarea {
+    border-width: 2px !important;
+  }
+}

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug API Issues</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .test-card {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .test-card h3 {
+            margin: 0 0 15px 0;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        .test-card p {
+            margin: 0 0 15px 0;
+            color: #718096;
+            font-size: 14px;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            word-break: break-all;
+        }
+        .success {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            color: #22543d;
+        }
+        .error {
+            background: #fed7d7;
+            border: 1px solid #feb2b2;
+            color: #742a2a;
+        }
+        .warning {
+            background: #fffaf0;
+            border: 1px solid #f6e05e;
+            color: #744210;
+        }
+        .info {
+            background: #ebf8ff;
+            border: 1px solid #90cdf4;
+            color: #2c5282;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #48bb78; }
+        .status-error { background: #f56565; }
+        .status-warning { background: #ed8936; }
+        .status-pending { background: #90cdf4; }
+        .tips {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .tips h3 {
+            color: #22543d;
+            margin: 0 0 15px 0;
+        }
+        .tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .tips li {
+            margin-bottom: 8px;
+            color: #22543d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug API Issues</h1>
+        
+        <div class="form-group">
+            <label for="apiUrl">API Base URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:5002/api" placeholder="Enter your API base URL">
+        </div>
+
+        <div class="form-group">
+            <label for="token">Admin JWT Token:</label>
+            <input type="password" id="token" placeholder="Enter your admin JWT token">
+        </div>
+
+        <div class="form-group">
+            <label for="userId">User ID:</label>
+            <input type="text" id="userId" value="68839ecdd8cb530d0c0fbc60" placeholder="Enter user ID">
+        </div>
+
+        <div class="test-grid">
+            <div class="test-card">
+                <h3>🌐 1. Test API Connection</h3>
+                <p>Check if your API server is running and accessible</p>
+                <button onclick="testConnection()">Test Connection</button>
+                <div id="connectionResult"></div>
+            </div>
+
+            <div class="test-card">
+                <h3>🔑 2. Test Admin Auth</h3>
+                <p>Verify your admin token is valid</p>
+                <button onclick="testAdminAuth()">Test Admin Token</button>
+                <div id="authResult"></div>
+            </div>
+
+            <div class="test-card">
+                <h3>📋 3. List Admin Routes</h3>
+                <p>Check available admin verification routes</p>
+                <button onclick="testAdminRoutes()">Test Admin Routes</button>
+                <div id="routesResult"></div>
+            </div>
+
+            <div class="test-card">
+                <h3>👤 4. Debug User</h3>
+                <p>Get detailed user information and trust score</p>
+                <button onclick="debugUser()">Debug User</button>
+                <div id="debugResult"></div>
+            </div>
+
+            <div class="test-card">
+                <h3>🔧 5. Fix Trust Score</h3>
+                <p>Attempt to fix the user's trust score</p>
+                <button onclick="fixTrustScore()">Fix Trust Score</button>
+                <div id="fixResult"></div>
+            </div>
+
+            <div class="test-card">
+                <h3>📊 6. Raw Response</h3>
+                <p>See the actual HTTP response (including HTML errors)</p>
+                <button onclick="rawRequest()">Get Raw Response</button>
+                <div id="rawResult"></div>
+            </div>
+        </div>
+
+        <div class="tips">
+            <h3>💡 Common Issues & Solutions:</h3>
+            <ul>
+                <li><strong>HTML Response:</strong> Wrong URL or route doesn't exist - check your API base URL</li>
+                <li><strong>403 Forbidden:</strong> Invalid admin token or user not admin</li>
+                <li><strong>404 Not Found:</strong> Route doesn't exist - make sure you added the new routes</li>
+                <li><strong>CORS Error:</strong> Frontend and backend on different ports - check CORS settings</li>
+                <li><strong>Network Error:</strong> API server not running - start your backend server</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function showResult(elementId, message, type = 'info', status = null) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${type}`;
+            
+            let statusIcon = '';
+            if (status) {
+                statusIcon = `<span class="status-indicator status-${status}"></span>`;
+            }
+            
+            const content = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+            resultDiv.innerHTML = statusIcon + content;
+        }
+
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value || 'http://localhost:5002/api';
+        }
+
+        function getToken() {
+            return document.getElementById('token').value;
+        }
+
+        function getUserId() {
+            return document.getElementById('userId').value || '68839ecdd8cb530d0c0fbc60';
+        }
+
+        async function makeDetailedRequest(url, method = 'GET', body = null, requireAuth = true) {
+            try {
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                if (requireAuth) {
+                    const token = getToken();
+                    if (!token) {
+                        return {
+                            success: false,
+                            error: 'No admin token provided',
+                            details: 'Please enter your admin JWT token'
+                        };
+                    }
+                    options.headers.Authorization = `Bearer ${token}`;
+                }
+
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+
+                console.log('Making request to:', url);
+                console.log('Options:', options);
+
+                const response = await fetch(url, options);
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                // Get response text first to handle both JSON and HTML
+                const responseText = await response.text();
+                console.log('Response text:', responseText.substring(0, 500) + '...');
+
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    // If it's not JSON, it might be HTML (error page)
+                    return {
+                        success: false,
+                        error: 'Server returned HTML instead of JSON',
+                        details: {
+                            status: response.status,
+                            statusText: response.statusText,
+                            isHtml: responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<html'),
+                            preview: responseText.substring(0, 200) + '...',
+                            fullResponse: responseText
+                        }
+                    };
+                }
+
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: responseData,
+                    error: response.ok ? null : responseData.message || 'Request failed'
+                };
+
+            } catch (error) {
+                console.error('Request error:', error);
+                return {
+                    success: false,
+                    error: error.message,
+                    details: 'Network error - check if your API server is running'
+                };
+            }
+        }
+
+        async function testConnection() {
+            showResult('connectionResult', '⏳ Testing connection...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            // Try a simple endpoint first (usually /health or /status)
+            const result = await makeDetailedRequest(`${apiUrl}/health`, 'GET', null, false);
+            
+            if (result.success) {
+                showResult('connectionResult', `✅ API server is running!\n\nStatus: ${result.status}\nResponse: ${JSON.stringify(result.data, null, 2)}`, 'success', 'success');
+            } else {
+                // Try the base URL
+                const baseResult = await makeDetailedRequest(apiUrl, 'GET', null, false);
+                if (baseResult.success) {
+                    showResult('connectionResult', `⚠️ API accessible but no /health endpoint\n\nBase URL works: ${apiUrl}\nStatus: ${baseResult.status}`, 'warning', 'warning');
+                } else {
+                    showResult('connectionResult', `❌ Connection failed\n\nURL: ${apiUrl}\nError: ${result.error}\nDetails: ${JSON.stringify(result.details, null, 2)}`, 'error', 'error');
+                }
+            }
+        }
+
+        async function testAdminAuth() {
+            showResult('authResult', '⏳ Testing admin authentication...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            const result = await makeDetailedRequest(`${apiUrl}/verification/admin/test`);
+            
+            if (result.success) {
+                showResult('authResult', `✅ Admin authentication successful!\n\n${JSON.stringify(result.data, null, 2)}`, 'success', 'success');
+            } else {
+                showResult('authResult', `❌ Admin authentication failed\n\nStatus: ${result.status}\nError: ${result.error}\nDetails: ${JSON.stringify(result.details, null, 2)}`, 'error', 'error');
+            }
+        }
+
+        async function testAdminRoutes() {
+            showResult('routesResult', '⏳ Testing admin routes...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            const routes = [
+                { path: '/verification/admin/test', name: 'Admin Test' },
+                { path: '/verification/admin/pending', name: 'Pending Verifications' },
+                { path: `/verification/admin/debug-user/${getUserId()}`, name: 'Debug User' }
+            ];
+
+            let results = [];
+            for (const route of routes) {
+                const result = await makeDetailedRequest(`${apiUrl}${route.path}`);
+                results.push({
+                    route: route.name,
+                    path: route.path,
+                    status: result.status || 'Failed',
+                    success: result.success,
+                    error: result.error
+                });
+            }
+
+            showResult('routesResult', `📋 Admin Routes Test Results:\n\n${JSON.stringify(results, null, 2)}`, 'info', 'success');
+        }
+
+        async function debugUser() {
+            showResult('debugResult', '⏳ Getting user debug info...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            const userId = getUserId();
+            const result = await makeDetailedRequest(`${apiUrl}/verification/admin/debug-user/${userId}`);
+            
+            if (result.success) {
+                showResult('debugResult', `✅ User debug info:\n\n${JSON.stringify(result.data, null, 2)}`, 'success', 'success');
+            } else {
+                showResult('debugResult', `❌ Failed to get user debug info\n\nStatus: ${result.status}\nError: ${result.error}\nDetails: ${JSON.stringify(result.details, null, 2)}`, 'error', 'error');
+            }
+        }
+
+        async function fixTrustScore() {
+            showResult('fixResult', '⏳ Attempting to fix trust score...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            const userId = getUserId();
+            const result = await makeDetailedRequest(`${apiUrl}/verification/admin/fix-user-trust/${userId}`, 'POST');
+            
+            if (result.success) {
+                showResult('fixResult', `✅ Trust score fixed successfully!\n\n${JSON.stringify(result.data, null, 2)}`, 'success', 'success');
+            } else {
+                showResult('fixResult', `❌ Failed to fix trust score\n\nStatus: ${result.status}\nError: ${result.error}\nDetails: ${JSON.stringify(result.details, null, 2)}`, 'error', 'error');
+            }
+        }
+
+        async function rawRequest() {
+            showResult('rawResult', '⏳ Getting raw response...', 'info', 'pending');
+            
+            const apiUrl = getApiUrl();
+            const userId = getUserId();
+            const token = getToken();
+            
+            try {
+                const response = await fetch(`${apiUrl}/verification/admin/fix-user-trust/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const responseText = await response.text();
+                
+                showResult('rawResult', `📊 Raw HTTP Response:
+
+Status: ${response.status} ${response.statusText}
+Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}
+
+Body:
+${responseText}`, 'info', 'success');
+
+            } catch (error) {
+                showResult('rawResult', `❌ Raw request failed:\n\n${error.message}`, 'error', 'error');
+            }
+        }
+
+        // Auto-focus API URL field
+        document.getElementById('apiUrl').focus();
+    </script>
+</body>
+</html>
