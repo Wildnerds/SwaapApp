@@ -67,6 +67,9 @@ export function createApp(io: IOServer) {
 
   // ✅ Health Check
   app.get('/', (_, res) => res.send('✅ Swaap API is up and running - Enhanced Verification System v2.1'));
+  
+  // ✅ Render Health Check
+  app.get('/health', (_, res) => res.status(200).json({ status: 'OK' }));
 
   // 🆕 API status endpoint
   app.get('/api/status', (_, res) => {
